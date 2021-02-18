@@ -88,6 +88,8 @@
                              (user-info email password-hash (hash)))))))))))
 
 (define (save-user! config info)
+  (when (not (userdb-config-write-permitted? config))
+    (error 'save-user! "Write not permitted to userdb ~v" config))
   (match-define (user-info email password-hash properties) info)
   (make-directory* (userdb-config-directory config))
   (call-with-atomic-output-file

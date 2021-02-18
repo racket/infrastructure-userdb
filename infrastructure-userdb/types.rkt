@@ -10,7 +10,7 @@
 (require (prefix-in bcrypt- bcrypt))
 
 (struct userdb-config (directory ;; path - directory where user records are kept
-                       
+                       write-permitted? ;; boolean - #t to allow creating/saving/updating user records
                        ) #:prefab)
 
 (struct user-info (email ;; string

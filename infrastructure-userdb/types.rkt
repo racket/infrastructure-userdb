@@ -26,7 +26,8 @@
 (define (user-password-correct? info given-password)
   ;; Do not trim or otherwise modify given-password: the user may have
   ;; spaces at the beginning or end of their password!
-  (bcrypt-check (user-info-password-hash info) (string->bytes/utf-8 given-password)))
+  (and (user-info? info)
+       (bcrypt-check (user-info-password-hash info) (string->bytes/utf-8 given-password))))
 
 (define (user-property info key [on-error #f])
   (hash-ref (user-info-properties info) key on-error))

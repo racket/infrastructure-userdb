@@ -12,7 +12,7 @@
 
 (require racket/match)
 (require (only-in racket/port port->bytes))
-(require (only-in racket/file make-directory*))
+(require (only-in racket/file make-directory* call-with-atomic-output-file))
 (require (prefix-in bcrypt- bcrypt))
 (require "types.rkt")
 
@@ -90,10 +90,11 @@
 (define (save-user! config info)
   (match-define (user-info email password-hash properties) info)
   (make-directory* (userdb-config-directory config))
-  (with-output-to-file (user-path config email)
-    (lambda ()
-      (write `((email ,email)
-               (password ,password-hash)
-               (properties ,(for/list [((k v) (in-hash properties))]
-                              (list k v))))))
-    #:exists 'replace))
+  (call-with-atomic-output-file
+   (user-path config email)
+   (lambda (port _tmp-path)
+     (write `((email ,email)
+              (password ,password-hash)
+              (properties ,(for/list [((k v) (in-hash properties))]
+                             (list k v))))
+            port))))

@@ -3,6 +3,7 @@
 (provide (struct-out userdb-config)
          (struct-out user-info)
          make-user
+         user-password-set
          user-password-correct?
          user-property
          user-property-set)
@@ -18,10 +19,14 @@
                    properties ;; hash from value to value
                    ) #:prefab)
 
+(define (hash-pw password-string)
+  (bcrypt-encode (string->bytes/utf-8 password-string)))
+
 (define (make-user email password-string)
-  (user-info email
-             (bcrypt-encode (string->bytes/utf-8 password-string))
-             (hash)))
+  (user-info email (hash-pw password-string) (hash)))
+
+(define (user-password-set info password-string)
+  (struct-copy user-info info [password-hash (hash-pw password-string)]))
 
 (define (user-password-correct? info given-password)
   ;; Do not trim or otherwise modify given-password: the user may have

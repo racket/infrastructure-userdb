@@ -16,6 +16,8 @@
 (require (prefix-in bcrypt- bcrypt))
 (require "types.rkt")
 
+(define-logger infrastructure-userdb/db)
+
 ;; This f o f^-1 is applied because it throws an error if file is not
 ;; a single path element. This causes things like "../../etc/passwd"
 ;; to throw errors and thus be protected.
@@ -30,8 +32,7 @@
 (define ((lookup-user-error email) code . details)
   (define (complain fmt . args)
     (define msg (apply format fmt args))
-    (fprintf (current-error-port) "~a\n" msg)
-    (log-error "~a" msg)
+    (log-infrastructure-userdb/db-error "~a" msg)
     #f)
   (match (cons code details)
     [`(exception ,e)
@@ -59,37 +60,39 @@
   (build-path^ (userdb-config-directory config) email))
 
 (define (lookup-user config email [on-error (lookup-user-error email)])
-  (with-handlers [(exn:fail? (lambda (e) (on-error 'exception e)))]
-    (define raw
-      (with-input-from-file (user-path config email)
-        (lambda ()
-          (match (peek-char)
-            [#\$
-             ;; Old-style, password-only user database entry.
-             (define bs (port->bytes))
-             `((email ,email) (password ,bs))]
-            [_
-             ;; New-style alist, presumably.
-             (read)]))))
-    (define (get key ks [kf on-error])
-      (match (assq key raw)
-        [#f (kf 'missing-key key)]
-        [(list _ value) (ks value)]))
-    (get 'email
-         (lambda (email2)
-           (if (not (equal? email email2))
-               (on-error 'email-address-mismatch email email2)
-               (get 'password
-                    (lambda (password-hash)
-                      (get 'properties
-                           (lambda (properties)
-                             (user-info email password-hash (alist->hash properties)))
-                           (lambda _missing-key-error-details
-                             (user-info email password-hash (hash)))))))))))
+  (and (file-exists? (user-path config email))
+       (with-handlers [(exn:fail? (lambda (e) (on-error 'exception e)))]
+         (define raw
+           (with-input-from-file (user-path config email)
+             (lambda ()
+               (match (peek-char)
+                 [#\$
+                  ;; Old-style, password-only user database entry.
+                  (define bs (port->bytes))
+                  `((email ,email) (password ,bs))]
+                 [_
+                  ;; New-style alist, presumably.
+                  (read)]))))
+         (define (get key ks [kf on-error])
+           (match (assq key raw)
+             [#f (kf 'missing-key key)]
+             [(list _ value) (ks value)]))
+         (get 'email
+              (lambda (email2)
+                (if (not (equal? email email2))
+                    (on-error 'email-address-mismatch email email2)
+                    (get 'password
+                         (lambda (password-hash)
+                           (get 'properties
+                                (lambda (properties)
+                                  (user-info email password-hash (alist->hash properties)))
+                                (lambda _missing-key-error-details
+                                  (user-info email password-hash (hash))))))))))))
 
 (define (save-user! config info)
   (when (not (userdb-config-write-permitted? config))
     (error 'save-user! "Write not permitted to userdb ~v" config))
+  (log-infrastructure-userdb/db-info "Updating user ~v" info)
   (match-define (user-info email password-hash properties) info)
   (make-directory* (userdb-config-directory config))
   (call-with-atomic-output-file

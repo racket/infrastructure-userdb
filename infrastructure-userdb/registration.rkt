@@ -14,6 +14,8 @@
 (require (only-in file/sha1 bytes->hex-string))
 (require "types.rkt")
 
+(define-logger infrastructure-userdb/registration)
+
 (struct registration-state (codes ;; mutable hash from email string to code string
                             ) #:prefab)
 
@@ -27,6 +29,7 @@
 (define (generate-registration-code! s email)
   (define new-code (fresh-code))
   (hash-set! (registration-state-codes s) email new-code)
+  (log-infrastructure-userdb/registration-info "Generated new code ~a for ~v" new-code email)
   new-code)
 
 (define (codes-equal? a b)
@@ -39,6 +42,9 @@
   (if (and expected-code
            (codes-equal? expected-code given-code))
       (begin
+        (log-infrastructure-userdb/registration-info "Got valid code for ~v" email)
         (hash-remove! (registration-state-codes s) email)
         (k-ok))
-      (k-bad)))
+      (begin
+        (log-infrastructure-userdb/registration-info "Got invalid code for ~v" email)
+        (k-bad))))

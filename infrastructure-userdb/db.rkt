@@ -24,11 +24,6 @@
 (define (build-path^ base file)
   (build-path base (path-element->string (string->path-element file))))
 
-(define (alist->hash xs)
-  (for/hash [(entry (in-list xs))]
-    (match-define (list key value) entry)
-    (values key value)))
-
 (define ((lookup-user-error email) code . details)
   (define (complain fmt . args)
     (define msg (apply format fmt args))
@@ -85,7 +80,7 @@
                          (lambda (password-hash)
                            (get 'properties
                                 (lambda (properties)
-                                  (user-info email password-hash (alist->hash properties)))
+                                  (user-info email password-hash (make-immutable-hash properties)))
                                 (lambda _missing-key-error-details
                                   (user-info email password-hash (hash))))))))))))
 
